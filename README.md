@@ -433,7 +433,7 @@ See [CONFIG-GUIDE.md](CONFIG-GUIDE.md) for complete tuning guide.
 | Feature | RedCache | NVIDIA AIStore | Alluxio |
 | --- | --- | --- | --- |
 | **Deployment** | On GPU nodes | On GPU/Separate cluster | On GPU/Separate cluster |
-| **Storage** | Existing NVMe | Dedicated storage | Dedicated storage |
+| **Storage** | Existing NVMe | Existing NVMe | Existing NVMe |
 | **Memory** | <1GB | 4-8GB | 8-16GB |
 | **CPU** | <0.5 core | 4-8 cores | 8-16 cores |
 | **Cost** | ~$0/month | ~$2,000/month | ~$6,500/month |
