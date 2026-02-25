@@ -1,0 +1,62 @@
+# ============================================================================
+# RedCache — Minimal Configuration
+# Quick-start for single-node development or testing
+# ============================================================================
+
+proxy:
+  listen_addr: ":8080"
+  read_timeout: "30s"
+  write_timeout: "30s"
+  max_request_size: 104857600   # 100MB
+
+cache:
+  directory: "/cache"
+  max_size: 10737418240         # 10GB
+  eviction_policy: "lru"
+  eviction_threshold: 0.9
+  maintenance_interval: "5m"
+
+s3:
+  region: "us-east-1"
+  endpoint: ""                  # Leave empty for AWS S3
+  max_retries: 3
+  timeout: "30s"
+  # Credentials via environment variables:
+  # export AWS_ACCESS_KEY_ID=your_key
+  # export AWS_SECRET_ACCESS_KEY=your_secret
+
+prefetch:
+  enabled: true
+  window_size: 1000
+  prediction_depth: 5
+  workers: 4
+  queue_size: 100
+  interval: "1s"
+
+metrics:
+  namespace: "redcache"
+  listen_addr: ":9090"
+  report_interval: "10s"
+
+storage:
+  database:
+    path: "/tmp/redcache/db"
+    max_memory_mb: 512
+    sync_writes: false
+    compression: true
+    gc_interval: "10m"
+    value_log_file_size: 1073741824
+    num_versions_to_keep: 1
+
+logging:
+  level: "info"
+  format: "json"
+  output: "stdout"
+
+health:
+  path: "/health"
+  readiness_path: "/ready"
+  liveness_path: "/live"
+
+# Distributed mode is disabled for minimal/single-node setup.
+# See config.example.yaml or config.production.yaml for cluster configuration.

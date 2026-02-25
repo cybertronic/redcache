@@ -1,0 +1,52 @@
+# Prometheus configuration for RedCache monitoring
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'redcache-test'
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []
+
+# Rule files
+rule_files:
+  - 'alerts.yml'
+
+# Scrape configurations
+scrape_configs:
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # RedCache Node 1
+  - job_name: 'redcache-node-1'
+    static_configs:
+      - targets: ['redcache-node-1:9090']
+        labels:
+          node: 'node-1'
+
+  # RedCache Node 2
+  - job_name: 'redcache-node-2'
+    static_configs:
+      - targets: ['redcache-node-2:9090']
+        labels:
+          node: 'node-2'
+
+  # RedCache Node 3
+  - job_name: 'redcache-node-3'
+    static_configs:
+      - targets: ['redcache-node-3:9090']
+        labels:
+          node: 'node-3'
+
+  # LocalStack metrics (if available)
+  - job_name: 'localstack'
+    static_configs:
+      - targets: ['localstack:4566']
+    metrics_path: '/_health'
+    scrape_interval: 30s

@@ -1,0 +1,37 @@
+# Makefile for Protocol Buffer generation
+
+.PHONY: proto proto-install proto-clean
+
+# Generate Go code from proto files
+proto:
+	@echo "Generating protobuf code..."
+	protoc --go_out=. --go_opt=paths=source_relative \
+		--go-grpc_out=. --go-grpc_opt=paths=source_relative \
+		proto/cache.proto
+	@echo "Protobuf code generated successfully!"
+
+# Install protobuf compiler plugins
+proto-install:
+	@echo "Installing protobuf compiler plugins..."
+	go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+	go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+	@echo "Plugins installed successfully!"
+	@echo ""
+	@echo "Make sure you have protoc installed:"
+	@echo "  - Ubuntu/Debian: sudo apt install protobuf-compiler"
+	@echo "  - macOS: brew install protobuf"
+	@echo "  - Or download from: https://github.com/protocolbuffers/protobuf/releases"
+
+# Clean generated files
+proto-clean:
+	@echo "Cleaning generated protobuf files..."
+	rm -f proto/*.pb.go
+	@echo "Cleaned!"
+
+# Help
+help:
+	@echo "Available targets:"
+	@echo "  proto-install  - Install protobuf compiler plugins"
+	@echo "  proto          - Generate Go code from proto files"
+	@echo "  proto-clean    - Remove generated files"
+	@echo "  help           - Show this help message"

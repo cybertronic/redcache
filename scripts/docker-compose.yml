@@ -1,0 +1,68 @@
+version: '3.8'
+
+services:
+  node-1:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: redcache-node-1
+    volumes:
+      - ./config/node-1.yaml:/etc/redcache/config.yaml
+      - node1-data:/var/lib/redcache
+    networks:
+      redcache-net:
+        ipv4_address: 172.20.0.11
+    cap_add:
+      - IPC_LOCK
+      - SYS_RESOURCE # Required for io_uring and mlock
+    ulimits:
+      memlock: -1  # Allow unlimited pinned memory for io_uring
+    command: ["/app/redcache", "--config", "/etc/redcache/config.yaml"]
+
+  node-2:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: redcache-node-2
+    volumes:
+      - ./config/node-2.yaml:/etc/redcache/config.yaml
+      - node2-data:/var/lib/redcache
+    networks:
+      redcache-net:
+        ipv4_address: 172.20.0.12
+    cap_add:
+      - IPC_LOCK
+      - SYS_RESOURCE
+    ulimits:
+      memlock: -1
+    command: ["/app/redcache", "--config", "/etc/redcache/config.yaml"]
+
+  node-3:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: redcache-node-3
+    volumes:
+      - ./config/node-3.yaml:/etc/redcache/config.yaml
+      - node3-data:/var/lib/redcache
+    networks:
+      redcache-net:
+        ipv4_address: 172.20.0.13
+    cap_add:
+      - IPC_LOCK
+      - SYS_RESOURCE
+    ulimits:
+      memlock: -1
+    command: ["/app/redcache", "--config", "/etc/redcache/config.yaml"]
+
+networks:
+  redcache-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/24
+
+volumes:
+  node1-data:
+  node2-data:
+  node3-data:

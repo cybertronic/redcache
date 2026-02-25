@@ -1,0 +1,215 @@
+# ============================================================================
+# RedCache — Production Configuration
+# Optimized for production GPU training workloads (3-node cluster, EC optional)
+# ============================================================================
+
+# ============================================================================
+# PROXY / HTTP SERVER
+# ============================================================================
+proxy:
+  listen_addr: ":8080"
+  read_timeout: "60s"           # Longer timeout for large model checkpoints
+  write_timeout: "60s"
+  max_request_size: 524288000   # 500MB — accommodate large tensors
+
+# ============================================================================
+# CACHE ENGINE
+# ============================================================================
+cache:
+  # Dedicated NVMe mount — format with XFS for best performance:
+  #   mkfs.xfs /dev/nvme0n1 && mount /dev/nvme0n1 /mnt/nvme0
+  directory: "/mnt/nvme0/cache"
+
+  # 1TB cache — adjust to 80-90% of available NVMe capacity
+  max_size: 1099511627776       # 1TB
+
+  # Adaptive policy automatically switches between LRU/LFU/ARC
+  # based on observed workload characteristics
+  eviction_policy: "adaptive"
+
+  eviction_threshold: 0.9       # Start eviction at 90%
+  maintenance_interval: "5m"
+
+# ============================================================================
+# S3 BACKEND / OBJECT STORE
+# ============================================================================
+s3:
+  region: "us-east-1"
+  endpoint: ""                  # AWS S3 (set for MinIO/GCS/Wasabi)
+  force_path_style: false
+  max_retries: 5                # More retries for production resilience
+  timeout: "60s"
+
+  # ---- Resilience & Throttling Protection ----
+  # Prevents S3 API rate limit lockouts (503 Slow Down)
+  enable_circuit_breaker: true
+  circuit_failure_threshold: 10 # Trip after 10 consecutive failures
+  circuit_break_duration: "30s" # Cooldown period before trying S3 again
+  
+  # Exponential Backoff with Jitter
+  retry_backoff: "100ms"        # Base backoff
+  retry_max_backoff: "10s"      # Max backoff cap
+
+# ============================================================================
+# ML-BASED PREFETCHING
+# ============================================================================
+prefetch:
+  enabled: true
+  window_size: 2000             # Larger window for better pattern detection
+  prediction_depth: 10          # Aggressive look-ahead
+  workers: 8                    # More workers for high-throughput clusters
+  queue_size: 200
+  interval: "1s"
+
+# ============================================================================
+# METRICS
+# ============================================================================
+metrics:
+  namespace: "redcache"
+  listen_addr: ":9090"
+  report_interval: "10s"
+
+# ============================================================================
+# BADGERDB PERSISTENT STORAGE
+# ============================================================================
+storage:
+  database:
+    path: "/var/lib/redcache/db"
+    max_memory_mb: 8192         # 8GB block cache for high-throughput
+    sync_writes: false          # Async writes for maximum throughput
+    compression: true
+    gc_interval: "10m"
+    value_log_file_size: 1073741824   # 1GB per value log file
+    num_versions_to_keep: 1
+
+  backup:
+    enabled: true
+    path: "/var/lib/redcache/backups"
+    interval: "1h"
+    retention: "168h"           # 7 days
+
+# ============================================================================
+# REPLICATION
+# ============================================================================
+replication:
+  coordination:
+    method: "raft"
+    raft_dir: "/var/lib/redcache/raft"
+    raft_bind: "0.0.0.0:8300"
+    bootstrap: false            # Set true only on the first node at cluster init
+    join_addresses:
+      - "gpu-node-01:8300"
+      - "gpu-node-02:8300"
+      - "gpu-node-03:8300"
+    heartbeat_timeout: "1s"
+    election_timeout: "1s"
+    snapshot_interval: "120s"
+    snapshot_threshold: 8192
+
+  cache:
+    method: "gossip"
+    fanout: 3
+    sync_interval: "5s"
+    conflict_resolution: "lww"
+    max_update_queue_size: 10000
+    retry_attempts: 3
+    retry_delay: "1s"
+
+# ============================================================================
+# DISTRIBUTED CLUSTER (Multi-Raft & VSharding enabled)
+# ============================================================================
+distributed:
+  enabled: true
+
+  # IMPORTANT: Set a unique node_id on each node
+  # Recommended: use ${HOSTNAME} or set NODE_ID environment variable
+  node_id: "${NODE_ID:-gpu-node-01}"
+
+  bind_addr: "0.0.0.0"
+  bind_port: 7946
+  rpc_port: 8946
+
+  # List all peer nodes (use bind_port, not rpc_port)
+  seeds:
+    - "gpu-node-02:7946"
+    - "gpu-node-03:7946"
+
+  # ---- Sharding (New) ----
+  num_virtual_shards: 1024      # Fixed-slot sharding for 1k+ node scale
+  replication_factor: 3         # Replicas per virtual shard
+
+  enable_quorum: true
+  conflict_resolution: "last-write-wins"
+
+  # ---- Auto-Rebalancing ----
+  enable_auto_rebalance: true
+  rebalance_batch_size: 100     # Keys per batch
+  rebalance_throttle: "10ms"    # Delay between batches
+
+  # ---- Erasure Coding ----
+  # Hardware-accelerated (AVX-512) for production throughput.
+  enable_erasure_coding: false
+  erasure_encoding: "6+3"
+  erasure_shard_size: 1048576   # 1MB shards
+  erasure_enable_avx2: true
+  erasure_enable_avx512: true
+
+  # ---- Reliability (New) ----
+  enable_repair_manager: true   # Background erasure reconstruction
+  repair_interval: "60s"
+  enable_merkle_sync: true      # Efficient anti-entropy comparisons
+
+  # ---- Cache Coherence ----
+  coherence_protocol: "mesi"
+
+  # ---- Health Monitoring ----
+  health_check_interval: "5s"
+  health_check_timeout: "2s"
+
+  # ---- Synchronization ----
+  sync_interval: "10s"
+
+  # ---- Failure Detection ----
+  heartbeat_interval: "5s"
+  failure_timeout: "30s"
+
+# ============================================================================
+# ZERO-COPY / io_uring (Hardened for Production)
+# ============================================================================
+zero_copy:
+  io_uring:
+    # Set true for high-performance NVMe + Linux 6.0+ nodes.
+    enabled: true
+    queue_depth: 512            # Ring size (SQ/CQ)
+    num_fixed_buffers: 256      # Page-aligned mmap'd buffers
+    fixed_buffer_size: 1048576  # 1 MiB per buffer (mlock'd)
+    
+    # Modes: file_only | network | send_zc | full
+    mode: "full"                
+    
+    enable_send_zc: true        # Linux 6.0+ Zero-copy networking
+    enable_linked_sends: true   # Batch EC shard distribution
+    enable_splice: true         # Kernel-level file-to-socket splicing
+
+# ============================================================================
+# ADVANCED MONITORING & AUTO-TUNING
+# ============================================================================
+monitoring:
+  enable_analytics: true
+  enable_anomaly_detection: true
+  anomaly_threshold: 3.0
+  enable_auto_tuning: true
+  learning_rate: 0.1
+
+# ============================================================================
+# LOGGING
+# ============================================================================
+logging:
+  level: "info"
+  format: "json"
+  output: "stdout"
+
+health:
+  path: "/health"
+  readiness_path: "/ready"
+  liveness_path: "/live"

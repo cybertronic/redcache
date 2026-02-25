@@ -1,0 +1,122 @@
+# ============================================================================
+# RedCache — Node 2 Configuration (Docker Compose / Local Testing)
+# ============================================================================
+
+proxy:
+  listen_addr: "0.0.0.0:8080"
+  read_timeout: "30s"
+  write_timeout: "30s"
+  max_request_size: 104857600   # 100MB
+
+cache:
+  directory: "/cache"
+  max_size: 1073741824          # 1GB
+  eviction_policy: "adaptive"
+  eviction_threshold: 0.85
+  maintenance_interval: "5m"
+
+s3:
+  endpoint: "http://localstack:4566"
+  region: "us-east-1"
+  access_key_id: "test"
+  secret_access_key: "test"
+  timeout: "30s"
+  max_retries: 3
+
+prefetch:
+  enabled: true
+  window_size: 1000
+  prediction_depth: 5
+  workers: 4
+  queue_size: 100
+  interval: "1s"
+
+metrics:
+  namespace: "redcache"
+  listen_addr: "0.0.0.0:9090"
+  report_interval: "10s"
+
+storage:
+  database:
+    path: "/var/lib/redcache/db"
+    max_memory_mb: 256
+    sync_writes: false
+    compression: true
+    gc_interval: "10m"
+    value_log_file_size: 536870912    # 512MB (smaller for dev)
+    num_versions_to_keep: 1
+
+replication:
+  coordination:
+    method: "raft"
+    raft_dir: "/var/lib/redcache/raft"
+    raft_bind: "0.0.0.0:8300"
+    bootstrap: false            # Node 2 joins the cluster bootstrapped by node-1
+    join_addresses:
+      - "redcache-node-1:8300"
+    heartbeat_timeout: "1s"
+    election_timeout: "1s"
+    snapshot_interval: "120s"
+    snapshot_threshold: 8192
+  cache:
+    method: "gossip"
+    fanout: 3
+    sync_interval: "5s"
+    conflict_resolution: "lww"
+    max_update_queue_size: 10000
+    retry_attempts: 3
+    retry_delay: "1s"
+
+distributed:
+  enabled: true
+  node_id: "node-2"
+  bind_addr: "0.0.0.0"
+  bind_port: 7946
+  rpc_port: 8946
+  seeds:
+    - "redcache-node-1:7946"
+    - "redcache-node-3:7946"
+  enable_quorum: true
+  conflict_resolution: "last-write-wins"
+  replication_factor: 3
+
+  # Auto-rebalancing
+  enable_auto_rebalance: true
+  rebalance_batch_size: 100
+  rebalance_throttle: "10ms"
+
+  # Erasure coding (disabled for 3-node dev cluster; enable for 6+ nodes)
+  enable_erasure_coding: false
+  erasure_encoding: "6+3"
+  erasure_shard_size: 1048576
+  erasure_enable_avx2: true
+  erasure_enable_avx512: true
+
+  coherence_protocol: "mesi"
+  health_check_interval: "5s"
+  health_check_timeout: "2s"
+  sync_interval: "10s"
+  enable_gossip: true
+  gossip_interval: "1s"
+  heartbeat_interval: "5s"
+  failure_timeout: "30s"
+
+monitoring:
+  enable_analytics: true
+  enable_anomaly_detection: true
+  anomaly_threshold: 3.0
+  enable_auto_tuning: true
+  learning_rate: 0.1
+  enable_cost_optimization: false
+
+logging:
+  level: "info"
+  format: "json"
+  output: "stdout"
+  access_log: true
+  performance_log: false
+
+health:
+  path: "/health"
+  readiness_path: "/ready"
+  liveness_path: "/live"

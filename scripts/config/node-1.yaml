@@ -1,0 +1,31 @@
+cache:
+  directory: "/var/lib/redcache/node-1/cache"
+  max_size: 10737418240 # 10GB
+  eviction_policy: "adaptive"
+
+distributed:
+  enabled: true
+  node_id: "node-1"
+  bind_addr: "172.20.0.11"
+  bind_port: 7946
+  rpc_port: 8946
+  num_virtual_shards: 1024
+  replication_factor: 3
+  seeds: ["172.20.0.12:7946", "172.20.0.13:7946"]
+
+replication:
+  coordination:
+    method: "raft"
+    raft_dir: "/var/lib/redcache/node-1/raft"
+    raft_bind: "172.20.0.11:8300"
+    bootstrap: true # Initial node
+
+zero_copy:
+  io_uring:
+    enabled: true
+    mode: "full"
+    num_fixed_buffers: 256
+
+storage:
+  database:
+    path: "/var/lib/redcache/node-1/db"

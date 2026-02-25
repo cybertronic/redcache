@@ -1,0 +1,94 @@
+groups:
+  - name: redcache_alerts
+    interval: 30s
+    rules:
+      # High cache miss rate
+      - alert: HighCacheMissRate
+        expr: (1 - (cache_hits_total / (cache_hits_total + cache_misses_total))) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+          service: redcache
+        annotations:
+          summary: "High cache miss rate on {{ $labels.node }}"
+          description: "Cache miss rate is {{ $value | humanizePercentage }} on {{ $labels.node }}"
+
+      # Low cache hit rate
+      - alert: LowCacheHitRate
+        expr: (cache_hits_total / (cache_hits_total + cache_misses_total)) < 0.8
+        for: 10m
+        labels:
+          severity: info
+          service: redcache
+        annotations:
+          summary: "Low cache hit rate on {{ $labels.node }}"
+          description: "Cache hit rate is {{ $value | humanizePercentage }} on {{ $labels.node }}"
+
+      # High memory usage
+      - alert: HighMemoryUsage
+        expr: cache_capacity_used > 0.9
+        for: 5m
+        labels:
+          severity: warning
+          service: redcache
+        annotations:
+          summary: "High memory usage on {{ $labels.node }}"
+          description: "Cache capacity usage is {{ $value | humanizePercentage }} on {{ $labels.node }}"
+
+      # Cache near full
+      - alert: CacheNearFull
+        expr: cache_capacity_used > 0.95
+        for: 2m
+        labels:
+          severity: critical
+          service: redcache
+        annotations:
+          summary: "Cache nearly full on {{ $labels.node }}"
+          description: "Cache capacity usage is {{ $value | humanizePercentage }} on {{ $labels.node }}"
+
+      # High request latency
+      - alert: HighRequestLatency
+        expr: histogram_quantile(0.99, rate(request_duration_seconds_bucket[5m])) > 1
+        for: 5m
+        labels:
+          severity: warning
+          service: redcache
+        annotations:
+          summary: "High request latency on {{ $labels.node }}"
+          description: "P99 request latency is {{ $value }}s on {{ $labels.node }}"
+
+      # S3 download errors
+      - alert: HighS3ErrorRate
+        expr: rate(s3_download_errors_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          service: redcache
+        annotations:
+          summary: "High S3 error rate on {{ $labels.node }}"
+          description: "S3 error rate is {{ $value }} errors/sec on {{ $labels.node }}"
+
+      # Node down
+      - alert: NodeDown
+        expr: up{job=~"redcache-node.*"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: redcache
+        annotations:
+          summary: "Cache node {{ $labels.node }} is down"
+          description: "Cache node {{ $labels.node }} has been down for more than 1 minute"
+
+  - name: s3_alerts
+    interval: 60s
+    rules:
+      # S3 endpoint unavailable
+      - alert: S3EndpointDown
+        expr: up{job="localstack"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: localstack
+        annotations:
+          summary: "S3 endpoint is down"
+          description: "S3 endpoint has been unavailable for more than 2 minutes"

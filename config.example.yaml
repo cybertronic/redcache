@@ -1,0 +1,560 @@
+# ============================================================================
+# RedCache Configuration — Complete Reference
+# ============================================================================
+#
+# ENVIRONMENT VARIABLE SUBSTITUTION
+# ----------------------------------
+# Syntax:
+#   ${VAR}           - Use environment variable VAR
+#   $VAR             - Short syntax
+#   ${VAR:-default}  - Use VAR, or "default" if VAR is not set
+#
+# Examples:
+#   node_id: "${HOSTNAME}"
+#   node_id: "${NODE_ID:-node-1}"
+#   bind_port: ${BIND_PORT:-7946}
+#   access_key_id: "${AWS_ACCESS_KEY_ID}"
+#
+# See ENVIRONMENT-VARIABLES.md for complete documentation.
+# ============================================================================
+
+# ============================================================================
+# PROXY / HTTP SERVER
+# ============================================================================
+proxy:
+  # Address and port for the HTTP proxy server
+  # Format: "host:port" or ":port" to listen on all interfaces
+  # Default: ":8080"
+  listen_addr: ":8080"
+
+  # Read / write timeouts
+  # Format: duration string (e.g., "30s", "1m")
+  read_timeout: "30s"
+  write_timeout: "30s"
+
+  # Maximum request body size
+  # Default: 104857600 (100MB)
+  max_request_size: 104857600
+
+# ============================================================================
+# CACHE ENGINE
+# ============================================================================
+cache:
+  # Directory for local cache storage
+  # Recommended: dedicated NVMe mount (e.g., /mnt/nvme0/cache)
+  directory: "/cache"
+
+  # Maximum cache size in bytes
+  # Examples: 1073741824 (1GB), 10737418240 (10GB), 1099511627776 (1TB)
+  # Default: 10737418240 (10GB)
+  max_size: 10737418240
+
+  # Eviction policy
+  # Options: "lru", "lfu", "arc", "adaptive"
+  #   lru      - Least Recently Used (simple, fast)
+  #   lfu      - Least Frequently Used (better for repeated access)
+  #   arc      - Adaptive Replacement Cache (balanced LRU+LFU with ghost cache)
+  #   adaptive - Automatically switches between policies based on workload
+  # Default: "lru"
+  eviction_policy: "lru"
+
+  # Eviction watermarks (fraction of max_size)
+  # Eviction starts at high_water_mark and stops at low_water_mark
+  eviction_threshold: 0.9   # Start eviction at 90% full
+  # low_water_mark: 0.8     # Stop eviction at 80% full (used internally)
+
+  # How often to run cache maintenance (TTL expiry, stats update)
+  # Default: 5m
+  maintenance_interval: "5m"
+
+# ============================================================================
+# S3 BACKEND
+# ============================================================================
+s3:
+  # AWS region
+  region: "us-east-1"
+
+  # S3 endpoint URL
+  # Leave empty for AWS S3; set for S3-compatible storage:
+  #   "https://s3.wasabisys.com"   (Wasabi)
+  #   "https://storage.googleapis.com" (GCS)
+  #   "http://localhost:9000"      (MinIO)
+  endpoint: ""
+
+  # Use path-style URLs (required for MinIO and some S3-compatible stores)
+  # Default: false
+  force_path_style: false
+
+  # AWS credentials (prefer IAM roles or environment variables in production)
+  # access_key_id: "${AWS_ACCESS_KEY_ID}"
+  # secret_access_key: "${AWS_SECRET_ACCESS_KEY}"
+
+  # Request timeout and retry settings
+  timeout: "30s"
+  max_retries: 3
+
+# ============================================================================
+# PREFETCHING (ML-Based)
+# ============================================================================
+prefetch:
+  # Enable ML-based prefetching
+  # Default: true
+  enabled: true
+
+  # Number of recent accesses to consider for pattern detection
+  # Default: 1000
+  window_size: 1000
+
+  # How many future accesses to predict and prefetch
+  # Default: 5
+  prediction_depth: 5
+
+  # Number of concurrent prefetch worker goroutines
+  # Default: 4
+  workers: 4
+
+  # Maximum pending prefetch operations in queue
+  # Default: 100
+  queue_size: 100
+
+  # How often to run the prefetch prediction loop
+  # Default: 1s
+  interval: "1s"
+
+# ============================================================================
+# METRICS
+# ============================================================================
+metrics:
+  # Prometheus metrics namespace prefix
+  namespace: "redcache"
+
+  # Address for the Prometheus /metrics endpoint
+  # Default: ":9090"
+  listen_addr: ":9090"
+
+  # How often to update internal metric aggregations
+  # Default: 10s
+  report_interval: "10s"
+
+# ============================================================================
+# BADGERDB PERSISTENT STORAGE
+# ============================================================================
+storage:
+  database:
+    # Path to BadgerDB data directory
+    # Default: /var/lib/redcache/db
+    path: "/var/lib/redcache/db"
+
+    # Maximum memory for BadgerDB block cache (MB)
+    # Recommended: 10-25% of available RAM
+    # Default: 4096 (4GB)
+    max_memory_mb: 4096
+
+    # Sync writes to disk before returning (safer but slower)
+    # Default: false (async writes for better throughput)
+    sync_writes: false
+
+    # Enable BadgerDB internal compression
+    # Default: true
+    compression: true
+
+    # Optional encryption key (leave empty to disable)
+    # encryption_key: "${ENCRYPTION_KEY}"
+
+    # Garbage collection interval for value log
+    # Default: 10m
+    gc_interval: "10m"
+
+    # Maximum size of each value log file (bytes)
+    # Default: 1073741824 (1GB)
+    value_log_file_size: 1073741824
+
+    # Number of versions to keep per key
+    # Default: 1
+    num_versions_to_keep: 1
+
+  backup:
+    # Enable periodic BadgerDB backups
+    enabled: true
+
+    # Backup destination directory
+    path: "/var/lib/redcache/backups"
+
+    # How often to take a backup
+    interval: "1h"
+
+    # How long to retain backups
+    retention: "168h"  # 7 days
+
+# ============================================================================
+# REPLICATION
+# ============================================================================
+replication:
+  # --- Coordination state (strong consistency via Raft) ---
+  coordination:
+    method: "raft"
+
+    # Directory for Raft log and snapshot storage
+    raft_dir: "/var/lib/redcache/raft"
+
+    # Address Raft binds to for peer communication
+    raft_bind: "0.0.0.0:8300"
+
+    # Set to true on the very first node to bootstrap a new cluster
+    # Set to false on all subsequent nodes
+    bootstrap: false
+
+    # Addresses of existing Raft peers to join
+    join_addresses:
+      - "node1:8300"
+      - "node2:8300"
+
+    # Raft timing (increase for high-latency networks)
+    heartbeat_timeout: "1s"
+    election_timeout: "1s"
+
+    # Snapshot settings
+    snapshot_interval: "120s"
+    snapshot_threshold: 8192
+
+  # --- Cache data (eventual consistency via Gossip) ---
+  cache:
+    method: "gossip"
+
+    # Number of random nodes to replicate each update to
+    # Default: 3
+    fanout: 3
+
+    # How often to run a full gossip sync round
+    # Default: 5s
+    sync_interval: "5s"
+
+    # Conflict resolution strategy
+    # Options: "lww" (last-write-wins), "highest_version", "quorum"
+    conflict_resolution: "lww"
+
+    # Maximum pending gossip updates in queue
+    max_update_queue_size: 10000
+
+    # Retry settings for failed gossip deliveries
+    retry_attempts: 3
+    retry_delay: "1s"
+
+# ============================================================================
+# DISTRIBUTED CLUSTER
+# ============================================================================
+distributed:
+  # Enable distributed (multi-node) mode
+  # Default: false
+  enabled: false
+
+  # Unique node identifier — must be unique across the cluster
+  # Tip: use ${HOSTNAME} or ${NODE_ID:-node-1} for dynamic config
+  node_id: "node-1"
+
+  # Address and port for HashiCorp Memberlist (gossip membership)
+  bind_addr: "0.0.0.0"
+  bind_port: 7946
+
+  # Port for gRPC node-to-node RPC communication
+  rpc_port: 8946
+
+  # Seed nodes for initial cluster discovery
+  # Format: ["host1:bind_port", "host2:bind_port"]
+  seeds: []
+
+  # Require quorum (majority) for write operations
+  # Default: true
+  enable_quorum: true
+
+  # Conflict resolution strategy
+  # Options: "last-write-wins", "highest-version", "quorum"
+  conflict_resolution: "last-write-wins"
+
+  # Replication factor — number of copies of each key across the cluster
+  # Default: 3
+  replication_factor: 3
+
+  # ---- Auto-Rebalancing ----
+  # Automatically redistribute keys when nodes join or leave
+  # Default: true
+  enable_auto_rebalance: true
+
+  # Number of keys to migrate per rebalance batch
+  # Larger = faster rebalancing, higher network impact
+  # Default: 100
+  rebalance_batch_size: 100
+
+  # Delay between rebalance batches (throttle)
+  # Larger = lower network load, slower rebalancing
+  # Default: 10ms
+  rebalance_throttle: "10ms"
+
+  # ---- Erasure Coding ----
+  # Enable Reed-Solomon erasure coding instead of full replication
+  # When enabled, replication_factor is ignored in favour of the EC scheme
+  # Default: false
+  enable_erasure_coding: false
+
+  # Erasure coding scheme: "<data_shards>+<parity_shards>"
+  # Common configurations:
+  #   "6+3"  — tolerates 3 node failures, 1.5x storage overhead (vs 3x replication)
+  #   "8+4"  — tolerates 4 node failures, 1.5x storage overhead
+  #   "4+2"  — tolerates 2 node failures, 1.5x storage overhead (smaller clusters)
+  # Default: "6+3"
+  erasure_encoding: "6+3"
+
+  # Size of each erasure shard in bytes
+  # Larger shards = fewer RPC calls, more memory per operation
+  # Default: 1048576 (1MB)
+  erasure_shard_size: 1048576
+
+  # Hardware acceleration for Reed-Solomon encoding/decoding
+  # Auto-detected at startup; set to false to disable explicitly
+  erasure_enable_avx2: true    # ~400 MB/s on AVX2 hardware
+  erasure_enable_avx512: true  # ~800 MB/s on AVX-512 hardware
+
+  # ---- Cache Coherence ----
+  # Protocol for maintaining cache consistency across nodes
+  # Options: "mesi", "moesi", "dragon"
+  #   mesi   - Modified, Exclusive, Shared, Invalid (standard)
+  #   moesi  - MESI + Owned state (better for read-heavy workloads)
+  #   dragon - Dragon protocol (write-broadcast, good for small clusters)
+  # Default: "mesi"
+  coherence_protocol: "mesi"
+
+  # ---- Health Monitoring ----
+  health_check_interval: "5s"
+  health_check_timeout: "2s"
+
+  # ---- Data Synchronization ----
+  sync_interval: "10s"
+
+  # ---- Gossip Protocol ----
+  enable_gossip: true
+  gossip_interval: "1s"
+
+  # ---- Failure Detection ----
+  heartbeat_interval: "5s"
+  failure_timeout: "30s"
+
+  # ---- TLS (optional) ----
+  # tls_cert_file: "/etc/redcache/tls/node.crt"
+  # tls_key_file:  "/etc/redcache/tls/node.key"
+
+# ============================================================================
+# ADVANCED MONITORING & AUTO-TUNING
+# ============================================================================
+monitoring:
+  # Enable advanced analytics engine (time-series, aggregations)
+  # Default: true
+  enable_analytics: true
+
+  # Enable built-in anomaly detection (z-score based)
+  # Default: true
+  enable_anomaly_detection: true
+
+  # Anomaly detection sensitivity (standard deviations)
+  # Higher = less sensitive; lower = more alerts
+  # Default: 3.0 (3-sigma)
+  anomaly_threshold: 3.0
+
+  # Enable gradient-based auto-tuning of cache parameters
+  # Automatically adjusts: eviction thresholds, prefetch depth,
+  # compression settings, gossip fanout
+  # Default: true
+  enable_auto_tuning: true
+
+  # Auto-tuner learning rate (0.0 to 1.0)
+  # Higher = faster adaptation, more instability risk
+  # Default: 0.1
+  learning_rate: 0.1
+
+  # Enable cost optimization analysis
+  # Default: true
+  enable_cost_optimization: true
+
+# ============================================================================
+# LOGGING
+# ============================================================================
+logging:
+  # Log level: "debug", "info", "warn", "error"
+  level: "info"
+
+  # Log format: "json" (structured) or "text" (human-readable)
+  format: "json"
+
+  # Log destination: "stdout", "stderr", or a file path
+  output: "stdout"
+
+  # Log all HTTP requests
+  access_log: true
+
+  # Log detailed per-operation performance data (verbose)
+  performance_log: false
+
+# ============================================================================
+# HEALTH CHECK ENDPOINTS
+# ============================================================================
+health:
+  path: "/health"
+  readiness_path: "/ready"
+  liveness_path: "/live"
+
+# ============================================================================
+# ZERO-COPY / io_uring
+# ============================================================================
+zero_copy:
+  io_uring:
+    # Enable io_uring for file I/O and network operations.
+    # Requires Linux kernel 5.1+ (file I/O) or 6.0+ (SEND_ZC network).
+    # RedCache auto-detects kernel version and falls back gracefully.
+    enabled: false
+
+    # Operating mode:
+    #   "file_only"   — io_uring for disk reads/writes only (safe, Linux 5.1+)
+    #   "network"     — io_uring for EC shard distribution (Linux 5.7+)
+    #   "send_zc"     — file I/O + SEND_ZC zero-copy network send (Linux 6.0+)
+    #   "full"        — file_only + network + send_zc combined (Linux 6.0+)
+
+    mode: "file_only"
+
+    # io_uring submission queue depth (power of 2, 64–4096).
+    # Higher values allow more concurrent in-flight operations.
+    queue_depth: 256
+
+    # Number of pre-registered fixed buffers for file I/O.
+    # Each buffer is fixed_buffer_size bytes, pinned in memory.
+    # Reduces per-operation mmap overhead.
+    num_fixed_buffers: 64
+
+    # Size of each fixed buffer in bytes (default: 1 MiB).
+    fixed_buffer_size: 1048576   # 1 MiB
+
+    # Maximum number of SQEs batched per io_uring submit call.
+    # Larger batches reduce syscall overhead for EC shard sends.
+    max_batch_size: 32
+
+    # Timeout for a batch to be flushed even if not full (milliseconds).
+    batch_timeout_ms: 5
+
+    # Use kernel-side polling (IORING_SETUP_SQPOLL).
+    # Eliminates the io_uring_enter syscall for submission at the cost of
+    # a dedicated kernel thread. Only beneficial at very high IOPS (>500k).
+    # Requires CAP_SYS_NICE or running as root.
+    sq_poll: false
+
+    # CPU affinity for the SQ poll kernel thread (sq_poll must be true).
+    # -1 = no affinity pinning.
+    sq_poll_cpu: -1
+
+# ============================================================================
+# SECURITY
+# ============================================================================
+security:
+  # Enable TLS for the HTTP server
+  enable_tls: false
+  tls_cert_file: ""
+  tls_key_file: ""
+
+  # Enable request authentication
+  # Note: JWT/RBAC is on the roadmap; currently basic TLS only
+  enable_auth: false
+  auth_type: "bearer"
+
+  # Enable S3-style HMAC request signing verification
+  enable_request_signing: false
+
+# ============================================================================
+# EXAMPLE SCENARIOS
+# ============================================================================
+
+# SCENARIO 1: Single GPU Node (Development / Testing)
+# cache:
+#   directory: "/tmp/cache"
+#   max_size: 1073741824       # 1GB
+#   eviction_policy: "lru"
+# distributed:
+#   enabled: false
+# monitoring:
+#   enable_analytics: false
+#   enable_auto_tuning: false
+
+# SCENARIO 2: 3-Node Production Cluster with Replication
+# distributed:
+#   enabled: true
+#   node_id: "${NODE_ID:-node-1}"
+#   bind_addr: "0.0.0.0"
+#   bind_port: 7946
+#   rpc_port: 8946
+#   seeds:
+#     - "node-2:7946"
+#     - "node-3:7946"
+#   replication_factor: 3
+#   enable_erasure_coding: false
+#   enable_auto_rebalance: true
+
+# SCENARIO 3: 9-Node Cluster with Erasure Coding (6+3)
+# Tolerates 3 simultaneous node failures; 1.5x storage overhead vs 3x replication
+# distributed:
+#   enabled: true
+#   node_id: "${NODE_ID}"
+#   seeds:
+#     - "node-1:7946"
+#     - "node-2:7946"
+#     - "node-3:7946"
+#   enable_erasure_coding: true
+#   erasure_encoding: "6+3"
+#   erasure_shard_size: 1048576   # 1MB shards
+#   erasure_enable_avx512: true
+#   replication_factor: 1         # EC handles redundancy
+
+# SCENARIO 4: High-Performance Training (Aggressive Prefetching)
+# prefetch:
+#   enabled: true
+#   prediction_depth: 10
+#   workers: 8
+#   queue_size: 200
+# cache:
+#   eviction_policy: "arc"
+#   max_size: 1099511627776     # 1TB
+
+# SCENARIO 5: Storage-Optimized (Dedup + Compression + EC)
+# cache:
+#   eviction_policy: "adaptive"
+# distributed:
+#   enable_erasure_coding: true
+#   erasure_encoding: "6+3"
+#   erasure_enable_avx512: true
+# monitoring:
+#   enable_cost_optimization: true
+
+# ============================================================================
+# NOTES
+# ============================================================================
+#
+# 1. AWS Credentials:
+#    - Prefer IAM roles for production
+#    - Or set: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY environment variables
+#    - Or use ~/.aws/credentials
+#
+# 2. Erasure Coding vs. Replication:
+#    - EC (6+3) requires at least 9 nodes
+#    - EC (4+2) requires at least 6 nodes
+#    - EC saves ~50% storage vs 3x replication at equivalent durability
+#    - EC has higher encode/decode CPU cost (~800 MB/s with AVX-512)
+#    - Use replication for small clusters (< 6 nodes)
+#
+# 3. Memory Usage:
+#    - Total ≈ cache max_size + storage.database.max_memory_mb + OS overhead
+#    - Leave 10-20% system memory free
+#
+# 4. Rebalancing:
+#    - Triggered automatically on node join/leave when enable_auto_rebalance: true
+#    - Tune rebalance_batch_size and rebalance_throttle to control network impact
+#
+# 5. Validation:
+#    - Configuration is validated on startup; invalid values cause startup failure
+#    - Check logs for validation errors
+#
+# ============================================================================

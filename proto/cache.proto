@@ -1,0 +1,161 @@
+syntax = "proto3";
+
+package redcache;
+
+option go_package = "redcache/proto";
+
+// CacheService defines the gRPC service for cache operations
+service CacheService {
+  // Get retrieves a value from the cache
+  rpc Get(GetRequest) returns (GetResponse);
+  
+  // Set stores a value in the cache
+  rpc Set(SetRequest) returns (SetResponse);
+  
+  // Delete removes a value from the cache
+  rpc Delete(DeleteRequest) returns (DeleteResponse);
+  
+  // Replicate replicates data to another node
+  rpc Replicate(ReplicateRequest) returns (ReplicateResponse);
+  
+  // Heartbeat sends a heartbeat to check node health
+  rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
+  
+  // Ping checks if the node is alive
+  rpc Ping(PingRequest) returns (PingResponse);
+  
+  // Invalidate invalidates a cache entry
+  rpc Invalidate(InvalidateRequest) returns (InvalidateResponse);
+  
+  // GetBatch retrieves multiple values
+  rpc GetBatch(GetBatchRequest) returns (GetBatchResponse);
+  
+  // SetBatch stores multiple values
+  rpc SetBatch(SetBatchRequest) returns (SetBatchResponse);
+}
+
+// GetRequest represents a get operation
+message GetRequest {
+  string key = 1;
+  string node_id = 2;
+  int64 timestamp = 3;
+}
+
+// GetResponse represents the response to a get operation
+message GetResponse {
+  bool found = 1;
+  bytes value = 2;
+  int64 version = 3;
+  string error = 4;
+}
+
+// SetRequest represents a set operation
+message SetRequest {
+  string key = 1;
+  bytes value = 2;
+  int64 ttl_seconds = 3;
+  string node_id = 4;
+  int64 timestamp = 5;
+}
+
+// SetResponse represents the response to a set operation
+message SetResponse {
+  bool success = 1;
+  string error = 2;
+}
+
+// DeleteRequest represents a delete operation
+message DeleteRequest {
+  string key = 1;
+  string node_id = 2;
+  int64 timestamp = 3;
+}
+
+// DeleteResponse represents the response to a delete operation
+message DeleteResponse {
+  bool success = 1;
+  string error = 2;
+}
+
+// ReplicateRequest represents a replication operation
+message ReplicateRequest {
+  string key = 1;
+  bytes value = 2;
+  int64 version = 3;
+  string source_node = 4;
+  int64 timestamp = 5;
+}
+
+// ReplicateResponse represents the response to a replication operation
+message ReplicateResponse {
+  bool success = 1;
+  string error = 2;
+}
+
+// HeartbeatRequest represents a heartbeat
+message HeartbeatRequest {
+  string node_id = 1;
+  int64 timestamp = 2;
+  map<string, string> metadata = 3;
+}
+
+// HeartbeatResponse represents the response to a heartbeat
+message HeartbeatResponse {
+  bool acknowledged = 1;
+  int64 timestamp = 2;
+  map<string, string> metadata = 3;
+}
+
+// PingRequest represents a ping
+message PingRequest {
+  string node_id = 1;
+  int64 timestamp = 2;
+}
+
+// PingResponse represents the response to a ping
+message PingResponse {
+  bool alive = 1;
+  int64 timestamp = 2;
+}
+
+// InvalidateRequest represents a cache invalidation
+message InvalidateRequest {
+  string key = 1;
+  string node_id = 2;
+  int64 timestamp = 3;
+}
+
+// InvalidateResponse represents the response to an invalidation
+message InvalidateResponse {
+  bool success = 1;
+  string error = 2;
+}
+
+// GetBatchRequest represents a batch get operation
+message GetBatchRequest {
+  repeated string keys = 1;
+  string node_id = 2;
+  int64 timestamp = 3;
+}
+
+// GetBatchResponse represents the response to a batch get
+message GetBatchResponse {
+  map<string, bytes> values = 1;
+  repeated string missing_keys = 2;
+  string error = 3;
+}
+
+// SetBatchRequest represents a batch set operation
+message SetBatchRequest {
+  map<string, bytes> entries = 1;
+  int64 ttl_seconds = 2;
+  string node_id = 3;
+  int64 timestamp = 4;
+}
+
+// SetBatchResponse represents the response to a batch set
+message SetBatchResponse {
+  bool success = 1;
+  repeated string failed_keys = 2;
+  string error = 3;
+}

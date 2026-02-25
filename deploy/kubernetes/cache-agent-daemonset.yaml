@@ -1,0 +1,117 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: redcache
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: redcache-config
+  namespace: redcache
+data:
+  config.yaml: |
+    cache:
+      directory: /cache
+      max_size: 1099511627776  # 1TB
+      eviction_policy: adaptive
+      eviction_threshold: 0.9
+      maintenance_interval: 5m
+    
+    proxy:
+      listen_addr: "0.0.0.0:8080"
+      read_timeout: 60s
+      write_timeout: 60s
+      max_request_size: 524288000
+    
+    s3:
+      endpoint: "https://s3.amazonaws.com"
+      region: "us-east-1"
+      timeout: 60s
+      max_retries: 5
+    
+    metrics:
+      namespace: "redcache"
+      listen_addr: "0.0.0.0:9090"
+      report_interval: 10s
+    
+    storage:
+      database:
+        path: "/var/lib/redcache/db"
+        max_memory_mb: 2048
+        sync_writes: false
+        compression: true
+    
+    replication:
+      coordination:
+        method: "raft"
+        raft_dir: "/var/lib/redcache/raft"
+        raft_bind: "0.0.0.0:8300"
+        bootstrap: false
+        join_addresses: ["redcache-node-01:8300"]
+    
+    distributed:
+      enabled: true
+      num_virtual_shards: 1024
+      replication_factor: 3
+    
+    zero_copy:
+      io_uring:
+        enabled: true
+        mode: "full"
+        queue_depth: 512
+        num_fixed_buffers: 256
+        fixed_buffer_size: 1048576
+
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: redcache-agent
+  namespace: redcache
+  labels:
+    app: redcache
+spec:
+  selector:
+    matchLabels:
+      app: redcache
+  template:
+    metadata:
+      labels:
+        app: redcache
+    spec:
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      containers:
+      - name: redcache
+        image: cybertronic/redcache:v1.2.0-stable
+        securityContext:
+          capabilities:
+            add: ["IPC_LOCK", "SYS_RESOURCE"]
+        resources:
+          limits:
+            memory: "4Gi"
+            cpu: "2"
+        env:
+        - name: NODE_ID
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        volumeMounts:
+        - name: cache-storage
+          mountPath: /cache
+        - name: data-storage
+          mountPath: /var/lib/redcache
+        - name: config
+          mountPath: /etc/redcache
+          readOnly: true
+      volumes:
+      - name: cache-storage
+        hostPath:
+          path: /mnt/nvme/cache
+      - name: data-storage
+        hostPath:
+          path: /mnt/nvme/redcache-data
+      - name: config
+        configMap:
+          name: redcache-config
